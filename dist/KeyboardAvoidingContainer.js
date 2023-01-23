@@ -3,51 +3,19 @@ import {
   Dimensions,
   findNodeHandle,
   Keyboard,
-  KeyboardEvent,
   LayoutAnimation,
-  LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Platform,
-  ScreenRect,
-  ScrollView,
-  ScrollViewProps,
-  StyleProp,
   StyleSheet,
   TextInput as NativeTextInput,
   View,
-  ViewProps,
-  ViewStyle,
 } from 'react-native'
-import {NoInfer} from './utils/utility-types'
 import {genericMemo} from './utils/react'
 import {measureInWindow} from './utils/measureInWindow'
 import {hijackTextInputEvents} from './utils/hijackTextInputEvents'
-
 const {height: SCREEN_HEIGHT} = Dimensions.get('window')
 const KEYBOARD_PADDING = 48
-
-export interface ExternalKeyboardAvoidingContainerProps {
-  stickyFooter?: React.ReactNode
-  containerStyle?: StyleProp<ViewStyle>
-}
-export interface InternalKeyboardAvoidingContainerProps<
-  TScrollViewProps extends ScrollViewProps
-> {
-  ScrollViewComponent: React.ComponentType<NoInfer<TScrollViewProps>>
-  scrollViewRef: React.Ref<React.ComponentType<TScrollViewProps>>
-  scrollViewProps: TScrollViewProps
-  stickyFooterRef: React.Ref<View>
-  stickyFooterProps: ViewProps
-}
-export interface KeyboardAvoidingContainerProps<
-  TScrollViewProps extends ScrollViewProps
->
-  extends ExternalKeyboardAvoidingContainerProps,
-    InternalKeyboardAvoidingContainerProps<TScrollViewProps> {}
-
 export const KeyboardAvoidingContainer = genericMemo(
-  <TScrollViewProps extends ScrollViewProps>({
+  ({
     stickyFooter,
     containerStyle,
     ScrollViewComponent,
@@ -55,7 +23,7 @@ export const KeyboardAvoidingContainer = genericMemo(
     scrollViewProps,
     stickyFooterRef,
     stickyFooterProps,
-  }: KeyboardAvoidingContainerProps<TScrollViewProps>) => {
+  }) => {
     return (
       <View style={[styles.container, containerStyle]}>
         <ScrollViewComponent ref={scrollViewRef} {...scrollViewProps} />
@@ -68,31 +36,22 @@ export const KeyboardAvoidingContainer = genericMemo(
     )
   },
 )
-
-export function useKeyboardAvoidingContainerProps<
-  TScrollViewProps extends ScrollViewProps
->({
+export function useKeyboardAvoidingContainerProps({
   stickyFooter,
   containerStyle,
-
   onScroll,
   contentContainerStyle: contentContainerStyleProp,
   style: styleProp,
   ...passthroughScrollViewProps
-}: TScrollViewProps & ExternalKeyboardAvoidingContainerProps): Omit<
-  KeyboardAvoidingContainerProps<TScrollViewProps>,
-  'ScrollViewComponent'
-> {
-  const scrollViewRef = useRef<React.ComponentType<TScrollViewProps>>(null)
-  const stickyFooterRef = useRef<View | null>(null)
-
+}) {
+  const scrollViewRef = useRef(null)
+  const stickyFooterRef = useRef(null)
   const scrollPositionRef = useRef(0)
   const scrollViewOffsetRef = useRef(0)
-  const keyboardLayoutRef = useRef<ScreenRect | null>(null)
-  const stickyFooterLayoutRef = useRef<ScreenRect | null>(null)
-  const focusedTextInputLayoutRef = useRef<ScreenRect | null>(null)
+  const keyboardLayoutRef = useRef(null)
+  const stickyFooterLayoutRef = useRef(null)
+  const focusedTextInputLayoutRef = useRef(null)
   const layoutAnimationConfiguredRef = useRef(false)
-
   const [scrollViewOffset, setScrollViewOffset] = useState(0)
   const [
     scrollViewContentBottomInset,
@@ -100,13 +59,11 @@ export function useKeyboardAvoidingContainerProps<
   ] = useState(0)
   const [scrollViewBottomInset, setScrollViewBottomInset] = useState(0)
   const [stickyFooterOffset, setStickyFooterOffset] = useState(0)
-
   useEffect(() => {
     requestAnimationFrame(() => {
       if (scrollViewRef.current) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const scrollResponder = (scrollViewRef.current as any).getScrollResponder() as ScrollView
-
+        const scrollResponder = scrollViewRef.current.getScrollResponder()
         scrollResponder.scrollTo({
           y:
             scrollPositionRef.current +
@@ -117,23 +74,20 @@ export function useKeyboardAvoidingContainerProps<
       }
     })
   }, [scrollViewOffset])
-
   const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    event => {
       scrollPositionRef.current = event.nativeEvent.contentOffset.y
-
       if (onScroll) {
         onScroll(event)
       }
     },
     [onScroll],
   )
-  const handleStickyFooterLayout = useCallback((event: LayoutChangeEvent) => {
+  const handleStickyFooterLayout = useCallback(event => {
     setScrollViewBottomInset(event.nativeEvent.layout.height)
   }, [])
-
   const updateOffsets = useCallback(
-    ({keyboardEvent}: {keyboardEvent?: KeyboardEvent} = {}) => {
+    ({keyboardEvent} = {}) => {
       const keyboardAbsoluteTop = keyboardLayoutRef.current
         ? keyboardLayoutRef.current.screenY
         : SCREEN_HEIGHT
@@ -153,7 +107,6 @@ export function useKeyboardAvoidingContainerProps<
       const stickyFooterHeight = stickyFooterLayoutRef.current
         ? stickyFooterLayoutRef.current.height
         : 0
-
       const newScrollViewOffset = Math.max(
         0,
         focusedTextInputAbsoluteBottom -
@@ -166,7 +119,6 @@ export function useKeyboardAvoidingContainerProps<
         0,
         stickyFooterAbsoluteBottom - keyboardAbsoluteTop,
       )
-
       if (
         !layoutAnimationConfiguredRef.current &&
         (newScrollViewBottomInset !== scrollViewContentBottomInset ||
@@ -204,7 +156,6 @@ export function useKeyboardAvoidingContainerProps<
     },
     [scrollViewContentBottomInset, stickyFooterOffset],
   )
-
   useEffect(() => {
     const keyboardWillShowSub = Keyboard.addListener(
       'keyboardWillShow',
@@ -215,7 +166,6 @@ export function useKeyboardAvoidingContainerProps<
       async event => {
         // Prevent race conditions
         if (keyboardLayoutRef.current) return
-
         const {endCoordinates: newKeyboardLayout} = event
         const newFocusedTextInputNodeHandle = NativeTextInput.State.currentlyFocusedField()
         const newStickyFooterNodeHandle = findNodeHandle(
@@ -232,11 +182,9 @@ export function useKeyboardAvoidingContainerProps<
             ? measureInWindow(newStickyFooterNodeHandle)
             : Promise.resolve(null),
         ])
-
         keyboardLayoutRef.current = newKeyboardLayout
         focusedTextInputLayoutRef.current = newFocusedTextInputLayout
         stickyFooterLayoutRef.current = newStickyFooterLayout
-
         updateOffsets({keyboardEvent: event})
       },
     )
@@ -245,7 +193,6 @@ export function useKeyboardAvoidingContainerProps<
       event => {
         // Avoid overlap with `keyboardWillShow`
         if (!keyboardLayoutRef.current) return
-
         const {endCoordinates: newKeyboardLayout} = event
         // Avoid overlap with `keyboardWillHide`
         if (
@@ -254,7 +201,6 @@ export function useKeyboardAvoidingContainerProps<
         ) {
           return
         }
-
         keyboardLayoutRef.current = newKeyboardLayout
       },
     )
@@ -267,18 +213,15 @@ export function useKeyboardAvoidingContainerProps<
         keyboardLayoutRef.current = null
         focusedTextInputLayoutRef.current = null
         stickyFooterLayoutRef.current = null
-
         updateOffsets({keyboardEvent: event})
       },
     )
-
     return () => {
       keyboardWillShowSub.remove()
       keyboardWillChangeFrameSub.remove()
       keyboardWillHideSub.remove()
     }
   }, [updateOffsets])
-
   useEffect(() => {
     const textInputEvents = hijackTextInputEvents()
     // We watch for the switch between two text inputs and update offsets
@@ -295,11 +238,9 @@ export function useKeyboardAvoidingContainerProps<
           ) {
             return
           }
-
           const newFocusedTextInputLayout = newFocusedTextInputNodeHandle
             ? await measureInWindow(newFocusedTextInputNodeHandle)
             : null
-
           focusedTextInputLayoutRef.current = newFocusedTextInputLayout
             ? {
                 ...newFocusedTextInputLayout,
@@ -308,21 +249,17 @@ export function useKeyboardAvoidingContainerProps<
                   scrollViewOffsetRef.current,
               }
             : newFocusedTextInputLayout
-
           updateOffsets()
         })
       },
     )
-
     return () => {
       sub.remove()
     }
   }, [scrollViewOffset, updateOffsets])
-
   const scrollViewContentContainerStyle = useMemo(() => {
     const flatContentContainerStyleProp =
       StyleSheet.flatten(contentContainerStyleProp) || {}
-
     let scrollViewContentBottomInsetProp = 0
     if ('paddingBottom' in flatContentContainerStyleProp) {
       if (typeof flatContentContainerStyleProp.paddingBottom === 'number') {
@@ -334,7 +271,6 @@ export function useKeyboardAvoidingContainerProps<
         scrollViewContentBottomInsetProp = flatContentContainerStyleProp.padding
       }
     }
-
     return {
       paddingBottom:
         scrollViewContentBottomInset + scrollViewContentBottomInsetProp,
@@ -342,7 +278,6 @@ export function useKeyboardAvoidingContainerProps<
   }, [contentContainerStyleProp, scrollViewContentBottomInset])
   const scrollViewStyle = useMemo(() => {
     const flatStyleProp = StyleSheet.flatten(styleProp) || {}
-
     let scrollViewBottomInsetProp = 0
     if ('marginBottom' in flatStyleProp) {
       if (typeof flatStyleProp.marginBottom === 'number') {
@@ -353,12 +288,10 @@ export function useKeyboardAvoidingContainerProps<
         scrollViewBottomInsetProp = flatStyleProp.margin
       }
     }
-
     return {
       marginBottom: scrollViewBottomInset + scrollViewBottomInsetProp,
     }
   }, [scrollViewBottomInset, styleProp])
-
   const scrollViewProps = useMemo(
     () =>
       // eslint-disable-next-line @typescript-eslint/no-object-literal-type-assertion
@@ -372,7 +305,7 @@ export function useKeyboardAvoidingContainerProps<
           scrollViewContentContainerStyle,
         ],
         style: [styleProp, scrollViewStyle],
-      } as TScrollViewProps),
+      }),
     [
       contentContainerStyleProp,
       handleScroll,
@@ -389,7 +322,6 @@ export function useKeyboardAvoidingContainerProps<
     }),
     [handleStickyFooterLayout, stickyFooterOffset],
   )
-
   return {
     stickyFooter,
     containerStyle,
@@ -399,7 +331,6 @@ export function useKeyboardAvoidingContainerProps<
     stickyFooterRef,
   }
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
